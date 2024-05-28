@@ -49,6 +49,6 @@ ENV DISPLAY=
 
 # Executing evacuation simulations
 WORKDIR "/home/workspace"
-ENTRYPOINT ["conda", "run", "-n", "robot-assisted-evacuation", "python", "start.py"]
+# ENTRYPOINT ["conda", "run", "-n", "robot-assisted-evacuation", "python", "start.py"]
 
 

@@ -43,6 +43,7 @@ def on_survivor_contact(candidate_helper, victim, helper_victim_distance, first_
 
 
 def main():
+    # print("Starting on_contact procedure...")
     parser = ArgumentParser("Get a robot action from the adaptive controller",
                             formatter_class=ArgumentDefaultsHelpFormatter)  # type: ArgumentParser
     parser.add_argument("simulation_id")

@@ -11,3 +11,5 @@
 /docker/src/room_square_4doors - Copy.png
 /docker/src/room_square_4doors_main_down.png
 /docker/src/room_square_4doors_main_left.png
+*.pyc
+*.log

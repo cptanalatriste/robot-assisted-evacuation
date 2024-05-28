@@ -2,7 +2,7 @@ import matplotlib
 
 from abm_video_generation import generate_video
 
-matplotlib.use('Agg')
+matplotlib.use("Agg")
 
 import math
 import multiprocessing
@@ -20,15 +20,20 @@ from pathlib import Path
 from pyNetLogo import NetLogoException
 from scipy.stats import mannwhitneyu
 from typing import List, Tuple, Dict, Optional
+import os
+
+os.environ["TMPDIR"] = "./temp/"
 
 WORKSPACE_FOLDER = "/home/workspace/"
 
-PLOT_STYLE = 'seaborn-darkgrid'
+PLOT_STYLE = "seaborn-darkgrid"
 
 NETLOGO_PROJECT_DIRECTORY = "/home/src/"  # type:str
 NETLOGO_MODEL_FILE = NETLOGO_PROJECT_DIRECTORY + "v2.11.0.nlogo"  # type:str
 NETLOGO_HOME = "/home/netlogo"  # type:str
-RESULTS_CSV_FILE = WORKSPACE_FOLDER + "data/{}_fall_{}_samples_experiment_results.csv"  # type:str
+RESULTS_CSV_FILE = (
+    WORKSPACE_FOLDER + "data/{}_fall_{}_samples_experiment_results.csv"
+)  # type:str
 
 NETLOGO_VERSION = "5"  # type:str
 
@@ -67,46 +72,74 @@ MAX_NETLOGO_TICKS = 2000  # type: int
 # function to calculate Cohen's d for independent samples
 # Inspired by: https://machinelearningmastery.com/effect-size-measures-in-python/
 
+
 def cohen_d_from_metrics(mean_1, mean_2, std_dev_1, std_dev_2):
     # type: (float, float, float, float) -> float
-    pooled_std_dev = np.sqrt((std_dev_1 ** 2 + std_dev_2 ** 2) / 2)
+    pooled_std_dev = np.sqrt((std_dev_1**2 + std_dev_2**2) / 2)
     return (mean_1 - mean_2) / pooled_std_dev
 
 
-def calculate_sample_size(mean_1, mean_2, std_dev_1, std_dev_2, alpha=0.05, power=0.8):
+def calculate_sample_size(
+    mean_1, mean_2, std_dev_1, std_dev_2, alpha=0.05, power=0.8
+):
     # type: (float, float, float, float, float, float) -> float
     analysis = sm.stats.TTestIndPower()  # type: sm.stats.TTestIndPower
     effect_size = cohen_d_from_metrics(mean_1, mean_2, std_dev_1, std_dev_2)
-    result = analysis.solve_power(effect_size=effect_size,
-                                  alpha=alpha,
-                                  power=power,
-                                  alternative="two-sided")
+    result = analysis.solve_power(
+        effect_size=effect_size,
+        alpha=alpha,
+        power=power,
+        alternative="two-sided",
+    )
     return result
 
 
 def run_simulation(simulation_id, post_setup_commands):
     # type: (str, List[str]) -> Optional[float]
+    print("Sending commands to Netlogo")
     try:
-        current_seed = netlogo_link.report(SEED_SIMULATION_REPORTER)  # type:str
+        current_seed = netlogo_link.report(
+            SEED_SIMULATION_REPORTER
+        )  # type:str
         netlogo_link.command("setup")
         netlogo_link.command(SET_SIMULATION_ID_COMMAND.format(simulation_id))
 
         if len(post_setup_commands) > 0:
             for post_setup_command in post_setup_commands:
                 netlogo_link.command(post_setup_command)
-                print("id:{} seed:{} {} executed".format(simulation_id, current_seed, post_setup_command))
+                print(
+                    "id:{} seed:{} {} executed".format(
+                        simulation_id, current_seed, post_setup_command
+                    )
+                )
         else:
-            print("id:{} seed:{} no post-setup commands".format(simulation_id, current_seed))
+            print(
+                "id:{} seed:{} no post-setup commands".format(
+                    simulation_id, current_seed
+                )
+            )
 
+        print("Starting simulation...")
         metrics_dataframe = netlogo_link.repeat_report(
-            netlogo_reporter=[TURTLE_PRESENT_REPORTER, EVACUATED_REPORTER, DEAD_REPORTER],
-            reps=MAX_NETLOGO_TICKS)  # type: pd.DataFrame
+            netlogo_reporter=[
+                TURTLE_PRESENT_REPORTER,
+                EVACUATED_REPORTER,
+                DEAD_REPORTER,
+            ],
+            reps=MAX_NETLOGO_TICKS,
+        )  # type: pd.DataFrame
 
         evacuation_finished = metrics_dataframe[
-            metrics_dataframe[TURTLE_PRESENT_REPORTER] == metrics_dataframe[DEAD_REPORTER]]
+            metrics_dataframe[TURTLE_PRESENT_REPORTER]
+            == metrics_dataframe[DEAD_REPORTER]
+        ]
 
         evacuation_time = evacuation_finished.index.min()  # type: float
-        print("id:{} seed:{} evacuation time {}".format(simulation_id, current_seed, evacuation_time))
+        print(
+            "id:{} seed:{} evacuation time {}".format(
+                simulation_id, current_seed, evacuation_time
+            )
+        )
         if math.isnan(evacuation_time):
             metrics_dataframe.to_csv("data/nan_df.csv")
             print("DEBUG!!! info to data/nan_df.csv")
@@ -126,10 +159,12 @@ def initialize(gui):
     # type: (bool) -> None
     global netlogo_link
 
-    netlogo_link = pyNetLogo.NetLogoLink(netlogo_home=NETLOGO_HOME,
-                                         netlogo_version=NETLOGO_VERSION,
-                                         gui=gui)  # type: pyNetLogo.NetLogoLink
+    netlogo_link = pyNetLogo.NetLogoLink(
+        netlogo_home=NETLOGO_HOME, netlogo_version=NETLOGO_VERSION, gui=gui
+    )  # type: pyNetLogo.NetLogoLink
+    print("Connected to Netlogo %s stored at %s." %(NETLOGO_VERSION, NETLOGO_MODEL_FILE))
     netlogo_link.load_model(NETLOGO_MODEL_FILE)
+    print("Model %s loaded" %(NETLOGO_MODEL_FILE))
 
 
 def start_experiments(experiment_configurations, results_file, samples):
@@ -138,9 +173,13 @@ def start_experiments(experiment_configurations, results_file, samples):
     start_time = time.time()  # type: float
 
     experiment_data = {}  # type: Dict[str, List[float]]
-    for experiment_name, experiment_commands in experiment_configurations.items():
-        scenario_times = run_parallel_simulations(experiment_name, samples,
-                                                  post_setup_commands=experiment_commands)  # type:List[float]
+    for (
+        experiment_name,
+        experiment_commands,
+    ) in experiment_configurations.items():
+        scenario_times = run_experiments(
+            experiment_name, samples, post_setup_commands=experiment_commands
+        )  # type:List[float]
         experiment_data[experiment_name] = scenario_times
 
     end_time = time.time()  # type: float
@@ -157,20 +196,65 @@ def run_simulation_with_dict(dict_parameters):
     return run_simulation(**dict_parameters)
 
 
-def run_parallel_simulations(experiment_name, samples, post_setup_commands, gui=False):
+def run_experiments(
+    experiment_name, samples, post_setup_commands, gui=False, parallel=False
+):
     # type: (str, int, List[str], bool) -> List[float]
 
     initialise_arguments = (gui,)  # type: Tuple
-    simulation_parameters = [{"simulation_id": "{}_{}".format(experiment_name, simulation_index),
-                              "post_setup_commands": post_setup_commands}
-                             for simulation_index in range(samples)]  # type: List[Dict]
+    simulation_parameters = [
+        {
+            "simulation_id": "{}_{}".format(experiment_name, simulation_index),
+            "post_setup_commands": post_setup_commands,
+        }
+        for simulation_index in range(samples)
+    ]  # type: List[Dict]
 
     results = []  # type: List[float]
-    executor = Pool(initializer=initialize,
-                    initargs=initialise_arguments)  # type: multiprocessing.pool.Pool
+    if parallel:
+        print(
+            "Running %d simulations in parallel" % (len(simulation_parameters))
+        )
+        results = run_parallel_simulations(
+            initialise_arguments, simulation_parameters
+        )
+    else:
+        print(
+            "Running %d simulations in sequence" % (len(simulation_parameters))
+        )
+        results = run_sequential_simulations(
+            initialise_arguments, simulation_parameters
+        )
 
-    for simulation_output in executor.map(func=run_simulation_with_dict,
-                                          iterable=simulation_parameters):
+
+    return results
+
+
+def run_sequential_simulations(
+    initialise_arguments, simulation_parameters
+):  # type: (tuple, List[Dict]) -> List[float]
+    results = []  # type: List[float]
+
+    for iteration_parameters in simulation_parameters:
+        initialize(*initialise_arguments)
+        results.append(run_simulation_with_dict(iteration_parameters))
+
+        netlogo_link.kill_workspace()
+
+    return results
+
+
+def run_parallel_simulations(
+    initialise_arguments, simulation_parameters
+):  # type: (tuple, List[Dict]) -> List[float]
+    results = []  # type: List[float]
+    executor = Pool(
+        initializer=initialize, initargs=initialise_arguments
+    )  # type: multiprocessing.pool.Pool
+
+    for simulation_output in executor.map(
+        func=run_simulation_with_dict, iterable=simulation_parameters
+    ):
         if simulation_output:
             results.append(simulation_output)
 
@@ -182,7 +266,9 @@ def run_parallel_simulations(experiment_name, samples, post_setup_commands, gui=
 
 def get_dataframe(csv_file):
     # type: (str) -> pd.DataFrame
-    results_dataframe = pd.read_csv(csv_file, index_col=[0])  # type: pd.DataFrame
+    results_dataframe = pd.read_csv(
+        csv_file, index_col=[0]
+    )  # type: pd.DataFrame
     results_dataframe = results_dataframe.dropna()
 
     return results_dataframe
@@ -208,47 +294,101 @@ def plot_results(csv_file, samples_in_title=False):
     if samples_in_title:
         title = "{} samples".format(len(results_dataframe))
     _ = sns.violinplot(data=results_dataframe, order=order).set_title(title)
-    plt.savefig(WORKSPACE_FOLDER + "img/" + file_description + "_violin_plot.png", bbox_inches='tight', pad_inches=0)
-    plt.savefig(WORKSPACE_FOLDER + "img/" + file_description + "_violin_plot.eps", bbox_inches='tight', pad_inches=0)
+    plt.savefig(
+        WORKSPACE_FOLDER + "img/" + file_description + "_violin_plot.png",
+        bbox_inches="tight",
+        pad_inches=0,
+    )
+    plt.savefig(
+        WORKSPACE_FOLDER + "img/" + file_description + "_violin_plot.eps",
+        bbox_inches="tight",
+        pad_inches=0,
+    )
     plt.show()
     plt.clf()
 
-    _ = sns.stripplot(data=results_dataframe, order=order, jitter=True).set_title(title)
-    plt.savefig(WORKSPACE_FOLDER + "img/" + file_description + "_strip_plot.png", bbox_inches='tight', pad_inches=0)
-    plt.savefig(WORKSPACE_FOLDER + "img/" + file_description + "_strip_plot.eps", bbox_inches='tight', pad_inches=0)
+    _ = sns.stripplot(
+        data=results_dataframe, order=order, jitter=True
+    ).set_title(title)
+    plt.savefig(
+        WORKSPACE_FOLDER + "img/" + file_description + "_strip_plot.png",
+        bbox_inches="tight",
+        pad_inches=0,
+    )
+    plt.savefig(
+        WORKSPACE_FOLDER + "img/" + file_description + "_strip_plot.eps",
+        bbox_inches="tight",
+        pad_inches=0,
+    )
     plt.show()
 
 
-def test_hypothesis(first_scenario_column, second_scenario_column, csv_file, alternative="two-sided"):
+def test_hypothesis(
+    first_scenario_column,
+    second_scenario_column,
+    csv_file,
+    alternative="two-sided",
+):
     # type: (str, str, str, str) -> None
     print("CURRENT ANALYSIS: Analysing file {}".format(csv_file))
     results_dataframe = get_dataframe(csv_file)  # type: pd.DataFrame
 
-    first_scenario_data = results_dataframe[first_scenario_column].values  # type: List[float]
+    first_scenario_data = results_dataframe[
+        first_scenario_column
+    ].values  # type: List[float]
     first_scenario_mean = np.mean(first_scenario_data).item()  # type:float
     first_scenario_stddev = np.std(first_scenario_data).item()  # type:float
 
-    second_scenario_data = results_dataframe[second_scenario_column].values  # type: List[float]
+    second_scenario_data = results_dataframe[
+        second_scenario_column
+    ].values  # type: List[float]
     second_scenario_mean = np.mean(second_scenario_data).item()  # type:float
     second_scenario_stddev = np.std(second_scenario_data).item()  # type:float
 
-    print("{}-> mean = {} std = {} len={}".format(first_scenario_column, first_scenario_mean, first_scenario_stddev,
-                                                  len(first_scenario_data)))
-    print("{}-> mean = {} std = {} len={}".format(second_scenario_column, second_scenario_mean, second_scenario_stddev,
-                                                  len(second_scenario_data)))
-    print("Recommended Sample size: {}".format(
-        calculate_sample_size(first_scenario_mean, second_scenario_mean, first_scenario_stddev,
-                              second_scenario_stddev)))
+    print(
+        "{}-> mean = {} std = {} len={}".format(
+            first_scenario_column,
+            first_scenario_mean,
+            first_scenario_stddev,
+            len(first_scenario_data),
+        )
+    )
+    print(
+        "{}-> mean = {} std = {} len={}".format(
+            second_scenario_column,
+            second_scenario_mean,
+            second_scenario_stddev,
+            len(second_scenario_data),
+        )
+    )
+    print(
+        "Recommended Sample size: {}".format(
+            calculate_sample_size(
+                first_scenario_mean,
+                second_scenario_mean,
+                first_scenario_stddev,
+                second_scenario_stddev,
+            )
+        )
+    )
 
-    null_hypothesis = "MANN-WHITNEY RANK TEST: " + \
-                      "The distribution of {} times is THE SAME as the distribution of {} times".format(
-                          first_scenario_column, second_scenario_column)  # type: str
-    alternative_hypothesis = "ALTERNATIVE HYPOTHESIS: the distribution underlying {} is stochastically {} than the " \
-                             "distribution underlying {}".format(first_scenario_column, alternative,
-                                                                 second_scenario_column)  # type:str
+    null_hypothesis = (
+        "MANN-WHITNEY RANK TEST: "
+        + "The distribution of {} times is THE SAME as the distribution of {} times".format(
+            first_scenario_column, second_scenario_column
+        )
+    )  # type: str
+    alternative_hypothesis = (
+        "ALTERNATIVE HYPOTHESIS: the distribution underlying {} is stochastically {} than the "
+        "distribution underlying {}".format(
+            first_scenario_column, alternative, second_scenario_column
+        )
+    )  # type:str
 
     threshold = 0.05  # type:float
-    u, p_value = mannwhitneyu(x=first_scenario_data, y=second_scenario_data, alternative=alternative)
+    u, p_value = mannwhitneyu(
+        x=first_scenario_data, y=second_scenario_data, alternative=alternative
+    )
     print("U={} , p={}".format(u, p_value))
     if p_value > threshold:
         print("FAILS TO REJECT NULL HYPOTHESIS: {}".format(null_hypothesis))
@@ -260,9 +400,10 @@ def test_hypothesis(first_scenario_column, second_scenario_column, csv_file, alt
 def simulate_and_store(simulation_scenarios, results_file_name, samples):
     # type: (Dict[str, List[str]],str, int) -> None
 
-    updated_simulation_scenarios = {scenario_name: commands
-                                    for scenario_name, commands in
-                                    simulation_scenarios.iteritems()}  # type: Dict[str, List[str]]
+    updated_simulation_scenarios = {
+        scenario_name: commands
+        for scenario_name, commands in simulation_scenarios.iteritems()
+    }  # type: Dict[str, List[str]]
     start_experiments(updated_simulation_scenarios, results_file_name, samples)
 
 
@@ -272,11 +413,21 @@ def get_current_file_metrics(simulation_scenarios, current_file):
     metrics_dict = {}  # type: Dict[str, float]
 
     for scenario in simulation_scenarios.keys():
-        metrics_dict["{}_mean".format(scenario)] = results_dataframe[scenario].mean()
-        metrics_dict["{}_std".format(scenario)] = results_dataframe[scenario].std()
-        metrics_dict["{}_median".format(scenario)] = results_dataframe[scenario].median()
-        metrics_dict["{}_min".format(scenario)] = results_dataframe[scenario].min()
-        metrics_dict["{}_max".format(scenario)] = results_dataframe[scenario].max()
+        metrics_dict["{}_mean".format(scenario)] = results_dataframe[
+            scenario
+        ].mean()
+        metrics_dict["{}_std".format(scenario)] = results_dataframe[
+            scenario
+        ].std()
+        metrics_dict["{}_median".format(scenario)] = results_dataframe[
+            scenario
+        ].median()
+        metrics_dict["{}_min".format(scenario)] = results_dataframe[
+            scenario
+        ].min()
+        metrics_dict["{}_max".format(scenario)] = results_dataframe[
+            scenario
+        ].max()
 
     return metrics_dict
 
@@ -286,14 +437,18 @@ def perform_analysis(target_scenario, simulation_scenarios, current_file):
 
     plt.style.use(PLOT_STYLE)
     plot_results(csv_file=current_file)
-    current_file_metrics = get_current_file_metrics(simulation_scenarios, current_file)  # type: Dict[str, float]
+    current_file_metrics = get_current_file_metrics(
+        simulation_scenarios, current_file
+    )  # type: Dict[str, float]
     # current_file_metrics["fall_length"] = fall_length
 
     for alternative_scenario in simulation_scenarios.keys():
         if alternative_scenario != target_scenario:
-            test_hypothesis(first_scenario_column=target_scenario,
-                            second_scenario_column=alternative_scenario,
-                            alternative="less",
-                            csv_file=current_file)
+            test_hypothesis(
+                first_scenario_column=target_scenario,
+                second_scenario_column=alternative_scenario,
+                alternative="less",
+                csv_file=current_file,
+            )
 
     return current_file_metrics
