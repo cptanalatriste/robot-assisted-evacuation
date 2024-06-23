@@ -127,7 +127,7 @@ to setup-environment
   ;; CONSTANTS: ajust environment conditions
   set EXIT_COLOR            blue
   set EXIT_LIGHTING_COLOR   orange
-  set PASSENGERS_COLOR      black 
+  set PASSENGERS_COLOR      black
   set STAFF_COLOR           green
   set SAR_ROBOT_COLOR       lime
   set STAFF_SUPPORT_COLOR   sky
@@ -156,6 +156,7 @@ to setup-environment
   set SIMULATION_ID 0
   ; Change these according to your Anaconda installation.
   ; Use the config below for evacuation time experiments.
+  set FRAME_DIRECTORY "/home/cgc87/github/wdywfm-adaptive-robot/frames"
   set CONTROLLER_PYTHON_COMMAND (list"/home/cgc87/anaconda3/bin/conda" "run" "-n" "wdywfm-adaptive-robot" "python")
   set CONTROLLER_PYTHON_SCRIPT "/home/cgc87/github/wdywfm-adaptive-robot/abm_runner.py"
 

@@ -142,6 +142,7 @@ globals [; GLOBALS
          ENABLE_LOGGING
          ENABLE_DATA_COLLECTION
          ENABLE_FRAME_GENERATION
+         FRAME_DIRECTORY
          CONTROLLER_PYTHON_COMMAND
          CONTROLLER_PYTHON_SCRIPT
          L_STEEPNESS L_THRESHOLD AL_STEEPNESS AL_THRESHOLD ETA_MENTAL ETA_BODY CROWD_CONGESTION_THRESHOLD WALL_COLOR
@@ -415,6 +416,7 @@ to setup
   ]
 
   set-default-shape agents "person"
+  log-turtle (word "Creating passengers: " number_passengers) nobody
   create-agents number_passengers [ move-to one-of patches with [ (pcolor = white or pcolor = orange) and count agents-here < 8 ] ]
   ask agents [
     set color PASSENGERS_COLOR
@@ -441,7 +443,7 @@ to setup
   set-time   ;nw
 
   if ENABLE_FRAME_GENERATION [
-    let errasing_frames (shell:exec "rm" "/home/workspace/frames/*")
+    let errasing_frames (shell:exec "rm" (word FRAME_DIRECTORY "/*"))
   ]
 end
 
@@ -828,12 +830,13 @@ to go
 
  tick
  write-png-frame
+
 end
 
 to write-png-frame
    if ENABLE_FRAME_GENERATION [
      let suffix (word SIMULATION_ID "_" ticks ".png")
-     export-view (word "/home/workspace/frames/view_" suffix)
+     export-view (word FRAME_DIRECTORY "/view_" suffix)
      ; Uncomment only when using the GUI
      ;export-interface (word "/home/results/frames/interface_" word ticks ".png")
      log-turtle (word "Frames written at /frames") nobody
@@ -1350,6 +1353,7 @@ to bystander-support-done
   ; For a helping bystander, to clear its related helping information
   set help-bonus 0
   set agent_to_help nobody
+
   set color previous-color
 
   set speed speed_bkp
@@ -1391,11 +1395,11 @@ to request-passanger-help
       set agent_to_help selected_fallen_person
       set help-bonus ROBOT_REQUEST_BONUS
       set previous-color color
+
       set color BYSTANDER_SUPPORT_COLOR
 
       log-turtle "Assigning agent to help:" selected_fallen_person
 
-      ; user-message "Agent helping!"
       start-helping
     ]
 
@@ -1616,7 +1620,6 @@ to search-fallen-passengers
       set help-in-progress TRUE
     ]
 
-    ; user-message "Victim found!"
 
   ][
     prepare-new-search
@@ -1659,9 +1662,12 @@ to place-staff-random
         set assistance-required nobody
         set help-factor STAFF_HELP_FACTOR
         set color STAFF_COLOR
+        set previous-color STAFF_COLOR
         set shape "person"
         move-to one-of patches with [ (pcolor = white or pcolor = orange) and count agents-here < 8 ]
     ]
+
+    log-turtle (word "Creating staff agents: " _number_normal_staff_members) nobody
 
     create-staff _number_normal_staff_members [
         set skill_convince_others _normal_staff_skill
@@ -1669,6 +1675,7 @@ to place-staff-random
         set assistance-required nobody
         set help-factor STAFF_HELP_FACTOR
         set color STAFF_COLOR
+        set previous-color STAFF_COLOR
         set shape "person"
         move-to one-of patches with [ (pcolor = white or pcolor = orange) and count agents-here < 8 ]
     ]
@@ -1897,7 +1904,6 @@ to receive-bystander-help [ helping-bystander ]
 
   if bonus > 0 [
     log-turtle "Applied bystander help" helping-bystander
-    ; user-message "Applied bystander help"
   ]
 
   if ticks-since-fall >= fall-length [
@@ -2485,7 +2491,7 @@ number_passengers
 number_passengers
 1
 6743
-800
+1
 1
 1
 NIL
@@ -2534,7 +2540,7 @@ SWITCH
 108
 _fire_alarm
 _fire_alarm
-0
+1
 1
 -1000
 
@@ -2545,7 +2551,7 @@ SWITCH
 140
 _public_announcement
 _public_announcement
-0
+1
 1
 -1000
 
@@ -2558,7 +2564,7 @@ _number_staff_members
 _number_staff_members
 0
 64
-0
+1
 1
 1
 NIL
@@ -2861,7 +2867,7 @@ _number_normal_staff_members
 _number_normal_staff_members
 0
 64
-8
+0
 1
 1
 NIL
