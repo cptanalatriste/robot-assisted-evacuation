@@ -839,7 +839,6 @@ to write-png-frame
      export-view (word FRAME_DIRECTORY "/view_" suffix)
      ; Uncomment only when using the GUI
      ;export-interface (word "/home/results/frames/interface_" word ticks ".png")
-     log-turtle (word "Frames written at /frames") nobody
  ]
 end
 
@@ -1221,7 +1220,6 @@ to-report seed-simulation [current-seed]
   ]
 
   random-seed current-seed
-
   report current-seed
 end
 
@@ -1309,7 +1307,15 @@ to prepare-new-search
   ; For the SAR robot, to prepare to locate a new passanger to help.
 
   set victim-found nobody
-  set candidate-helper nobody
+
+  if candidate-helper != nobody [
+    ask candidate-helper [
+      set color previous-color
+    ]
+    set candidate-helper nobody
+  ]
+
+  set color SAR_ROBOT_COLOR
 
   set support-strategy get-support-strategy
 end
@@ -1656,6 +1662,7 @@ end
 
 ;version 2.11
 to place-staff-random
+
     create-staff _number_staff_members [
         set skill_convince_others _staff_skill
         set target-patch nobody
