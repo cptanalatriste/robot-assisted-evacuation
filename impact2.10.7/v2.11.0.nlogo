@@ -188,6 +188,8 @@ staff-own [
   danger
   help-factor
   previous-color
+  ticks-since-move-to-help
+  robot-asked
 ]
 
 ; Agent variables for the sar-robot agents.
@@ -204,6 +206,8 @@ sar-robots-own [
 agents-own [
   nearest_exit_target speed speed_bkp
   ticks-since-fall
+  ticks-since-move-to-help
+  robot-asked
   fall-length
   help-factor
   help-bonus
@@ -272,7 +276,7 @@ to setup
   set start_fire_alarm 0
   set place_fire_tick  0
 
-  set cultural_cluster    [ "Arab" "Near East" "Latin Amerca" "East Europe" "Latin Europe" "Nordic" "Germanic" "African" "Anglo" "Confucian" "Far East"] ;nw
+  set cultural_cluster    [ "Arab" "Near East" "Latin America" "East Europe" "Latin Europe" "Nordic" "Germanic" "African" "Anglo" "Confucian" "Far East"] ;nw
   set english_proficiency [0.140 0.211 0.0751 0.1628 0.3605 0.8601 0.6951 0.4826 0.9539 0.0156 0.1827] ;nw
 
   ; STATISTICS
@@ -424,6 +428,8 @@ to setup
   ]
   ask agents [
     set ticks-since-fall 0
+    set ticks-since-move-to-help 0
+    set robot-asked FALSE
     set fall-length DEFAULT_FALL_LENGTH
     set help-factor PASSENGER_HELP_FACTOR
     set help-bonus 0
@@ -830,7 +836,6 @@ to go
 
  tick
  write-png-frame
-
 end
 
 to write-png-frame
@@ -949,8 +954,8 @@ to calculate-model
 
     ;nw
     if sound_public_announcement = 1 [
-    ;if pa_count_seconds >= public_announcement_frequency [ ; Public anouncements are considered according to frequecy
-      if pa_count_seconds = START_FIRE_ACTION [ ; Public anouncements are considered according to frequecy
+    ;if pa_count_seconds >= public_announcement_frequency [ ; Public anouncements are considered according to frequency
+      if pa_count_seconds = START_FIRE_ACTION [ ; Public anouncements are considered according to frequency
 
         let value item st_english_proficiency english_proficiency
         if ((random 100) / 100) < value [
@@ -967,7 +972,7 @@ to calculate-model
     ;
     ; INTERNAL STATES
     ;
-    set st_agent_location patch-here ; is something independet of the mind model, see the "do" function
+    set st_agent_location patch-here ; is something independent of the mind model, see the "do" function
 
     let sum_f 0
     ifelse _contagion_model = TRUE [
@@ -1006,9 +1011,6 @@ to calculate-model
     let col 0
     if st_gender = 0 [set col 1]                 ; males are at columns 0 and female are at columns 1
     set st_compliance matrix:get compliance_level_matrix row col
-
-    ; st_dead : is something independet of the mind model, see the "do" function
-    ; st_fall? : is something independet of the mind model, see the "do" function
 
 
     let list_aux []
@@ -1079,7 +1081,6 @@ to move-agent
   ]
   if agent_to_help != nobody [                     ;this is the mechanism for when a non-group member falls that you want to help: when fallen, do nothing, when he/she stands up, you and your group members pick up the old speed
     ask agent_to_help [
-
       ifelse st_fall = 1 [
         set stops_to_help? TRUE ; if the person still needs help, it continues stoped to help him.
       ][
@@ -1091,7 +1092,24 @@ to move-agent
       ]
     ]
   ]
-  if stops_to_help? = TRUE [stop]
+
+  if stops_to_help? = TRUE and agent_to_help != nobody [
+      ifelse distance agent_to_help <= 1 [
+        ; Victim in proximity
+        move-to [patch-here] of agent_to_help
+
+        set robot-asked FALSE
+        set ticks-since-move-to-help 0
+
+        log-turtle "Providing bystander support. Victim" agent_to_help
+        stop
+      ][
+        log-turtle "Bystander approaching to support. Victim " agent_to_help
+
+        ; Still far, approach to victim
+        approach-agent agent_to_help
+      ]
+    ]
 
   ; avoid passenger be stuck at same position between wall and fire
   ifelse count_time_stoped_same_position > 10 [
@@ -1202,15 +1220,7 @@ to move-staff  ; staff behavior ;nw
       set heading towards test
       jump 1
     ]
-
-
-;    if any? patches in-radius OBSERVATION_DISTANCE with [pcolor = EXIT_COLOR] [
-;      set heading towards one-of patches in-radius OBSERVATION_DISTANCE with [pcolor = EXIT_COLOR]
-;    ]
   ]
-; [
-;   if [pcolor] of patch-here = FIRE_COLOR or [pcolor] of patch-here = WALL_COLOR [move-to back_step]
-;  ]
   if [pcolor] of patch-here = EXIT_COLOR and count agents with [color != DEAD_PASSENGERS_COLOR] = 0  [die]
 end
 
@@ -1274,16 +1284,21 @@ to request-staff-support
      stop
   ]
 
-  let target-victim  victim-found
+  let target-victim victim-found
   let nearest-staff-member get-nearest-staff-member
 
   ifelse nearest-staff-member != nobody [
+
+    let staff-fallen-distance (word " ")
 
     ; Calling nearest staff member
     ask nearest-staff-member [
       set assistance-required target-victim
       set previous-color color
       set color STAFF_SUPPORT_COLOR
+      set robot-asked TRUE
+      set ticks-since-move-to-help ticks
+      set staff-fallen-distance (distance target-victim)
     ]
 
     ; TODO Remove later
@@ -1307,7 +1322,6 @@ to prepare-new-search
   ; For the SAR robot, to prepare to locate a new passanger to help.
 
   set victim-found nobody
-
   if candidate-helper != nobody [
     ask candidate-helper [
       set color previous-color
@@ -1316,7 +1330,6 @@ to prepare-new-search
   ]
 
   set color SAR_ROBOT_COLOR
-
   set support-strategy get-support-strategy
 end
 
@@ -1359,7 +1372,6 @@ to bystander-support-done
   ; For a helping bystander, to clear its related helping information
   set help-bonus 0
   set agent_to_help nobody
-
   set color previous-color
 
   set speed speed_bkp
@@ -1396,17 +1408,21 @@ to request-passanger-help
     log-turtle "Agreed to help. Bystander:" candidate-helper
     set bystander-requests (bystander-requests + 1)
 
+    let helper-fallen-distance (word " ")
     ask candidate-helper [
+       set helper-fallen-distance (distance selected_fallen_person)
+    ]
 
+
+    ask candidate-helper [
       set agent_to_help selected_fallen_person
       set help-bonus ROBOT_REQUEST_BONUS
       set previous-color color
-
       set color BYSTANDER_SUPPORT_COLOR
+      set robot-asked TRUE
+      set ticks-since-move-to-help ticks
 
       log-turtle "Assigning agent to help:" selected_fallen_person
-
-      start-helping
     ]
 
     prepare-new-search
@@ -1479,15 +1495,18 @@ to check-staff-request-for-support
   ; For the staff, to check if there's a SAR robot request for helping a passanger.
 
   if passenger-recovered? assistance-required [
-   ; Cancelling since victim not in need
    set assistance-required nobody
    set color previous-color
    stop
   ]
 
-  ifelse distance assistance-required < OBSERVATION_DISTANCE [
+  ifelse distance assistance-required <= 1 [
     ; Victim in proximity
     move-to [patch-here] of assistance-required
+
+    ; Cancelling since victim not in need
+    set robot-asked FALSE
+    set ticks-since-move-to-help 0
 
     ; TODO Remove later
     log-turtle "Providing staff support. Victim" assistance-required
@@ -1625,8 +1644,6 @@ to search-fallen-passengers
     ask passenger-to-help [
       set help-in-progress TRUE
     ]
-
-
   ][
     prepare-new-search
   ]
@@ -1662,11 +1679,12 @@ end
 
 ;version 2.11
 to place-staff-random
-
     create-staff _number_staff_members [
         set skill_convince_others _staff_skill
         set target-patch nobody
         set assistance-required nobody
+        set robot-asked FALSE
+        set ticks-since-move-to-help 0
         set help-factor STAFF_HELP_FACTOR
         set color STAFF_COLOR
         set previous-color STAFF_COLOR
@@ -1680,6 +1698,8 @@ to place-staff-random
         set skill_convince_others _normal_staff_skill
         set target-patch nobody
         set assistance-required nobody
+        set robot-asked FALSE
+        set ticks-since-move-to-help 0
         set help-factor STAFF_HELP_FACTOR
         set color STAFF_COLOR
         set previous-color STAFF_COLOR
@@ -1858,12 +1878,8 @@ to check-decide-to-help ;nw
     let selected_fallen_person one-of list_agents_falled
 
     let do-help offer-help? self selected_fallen_person
-    ifelse do-help [
+    if do-help [
       set agent_to_help selected_fallen_person
-      start-helping
-    ] [
-      ;TODO Remove later
-      ;log-turtle "Rejecting help to passenger" selected_fallen_person
     ]
   ]
 end
@@ -1903,8 +1919,6 @@ to receive-bystander-help [ helping-bystander ]
   log-turtle " Current Fall Length: " fall-length
 
   set fall-length fall-length * (factor - bonus)
-
-
 
   log-turtle " New Fall Length: " fall-length
   log-turtle " Helper: " helping-bystander
@@ -2130,7 +2144,6 @@ to check-exit
       ]
       if statistics_hist_counted = 3 [
         set divisor_after_fire_alarm divisor_after_fire_alarm + 1
-        ;set statistics_average_resp_time_from_fire_alarm_died statistics_average_resp_time_from_fire_alarm_died + start_evacuate - start_fire_alarm
         set statistics_average_resp_time_from_fire_alarm_died statistics_average_resp_time_from_fire_alarm_died + start_evacuate - start_place_fire
       ]
 
