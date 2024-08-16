@@ -1098,14 +1098,14 @@ to move-agent
         ; Victim in proximity
         move-to [patch-here] of agent_to_help
 
+        if robot-asked and agent_to_help != nobody [
+            log-turtle (word "[VERIFICATION] Approached agent in " (ticks - ticks-since-move-to-help) " ticks at speed " speed_bkp ". Agent to help:") agent_to_help
+        ]
         set robot-asked FALSE
         set ticks-since-move-to-help 0
 
-        log-turtle "Providing bystander support. Victim" agent_to_help
         stop
       ][
-        log-turtle "Bystander approaching to support. Victim " agent_to_help
-
         ; Still far, approach to victim
         approach-agent agent_to_help
       ]
@@ -1235,9 +1235,7 @@ end
 
 to log-turtle [prefix turtle-to-log]
   if ENABLE_LOGGING [
-      show ticks
-      show prefix
-      show turtle-to-log
+      show (word "simulation-id: " SIMULATION_ID " ticks: " ticks " prefix: " prefix " turtle: "turtle-to-log)
   ]
 
 end
@@ -1302,7 +1300,7 @@ to request-staff-support
     ]
 
     ; TODO Remove later
-    log-turtle "Staff contacted:" nearest-staff-member
+    log-turtle (word "[VERIFICATION] Staff contacted. Victim at " staff-fallen-distance " distance. Target victim: ") target-victim
 
     set staff-requests (staff-requests + 1)
     prepare-new-search
@@ -1405,14 +1403,13 @@ to request-passanger-help
 
   ifelse do-help [
     ; TODO Remove later
-    log-turtle "Agreed to help. Bystander:" candidate-helper
     set bystander-requests (bystander-requests + 1)
 
     let helper-fallen-distance (word " ")
     ask candidate-helper [
        set helper-fallen-distance (distance selected_fallen_person)
     ]
-
+    log-turtle (word "[VERIFICATION] Bystander agreed to help victim " selected_fallen_person " at distance " helper-fallen-distance " Bystander:") candidate-helper
 
     ask candidate-helper [
       set agent_to_help selected_fallen_person
@@ -1504,12 +1501,13 @@ to check-staff-request-for-support
     ; Victim in proximity
     move-to [patch-here] of assistance-required
 
+    ; TODO Remove later
+    log-turtle (word "[VERIFICATION] Providing staff support. Time to help " (ticks - ticks-since-move-to-help) " ticks. Victim") assistance-required
+
     ; Cancelling since victim not in need
     set robot-asked FALSE
     set ticks-since-move-to-help 0
 
-    ; TODO Remove later
-    log-turtle "Providing staff support. Victim" assistance-required
 
     ask assistance-required [
       receive-staff-help myself
@@ -1604,9 +1602,9 @@ to-report request-candidate-help?
     simulation-id helper-gender helper-culture helper-age fallen-gender fallen-culture fallen-age helper-fallen-distance staff-fallen-distance
   )
 
-  log-turtle "staff-fallen-distance " staff-fallen-distance
-  log-turtle "helper-fallen-distance " helper-fallen-distance
-  log-turtle "Response from controller " controller-response
+  log-turtle (word "[OUT] Normal staff " _number_normal_staff_members " Staff " _number_staff_members " Passengers " number_passengers " Victim: " the-victim " Helper: ") candidate-helper
+  log-turtle (word "[OUT] Input parameters simulation-id: " simulation-id " helper-gender " helper-gender " helper-culture " helper-culture " helper-age " helper-age " fallen-gender " fallen-gender " fallen-culture " fallen-culture " fallen-age " fallen-age " helper-fallen-distance " helper-fallen-distance " staff-fallen-distance " staff-fallen-distance) nobody
+  log-turtle (word "[OUT] Response from controller " controller-response) nobody
 
   let result FALSE
 
@@ -1913,15 +1911,15 @@ to receive-bystander-help [ helping-bystander ]
   let factor [help-factor] of helping-bystander
   let bonus [help-bonus] of helping-bystander
 
-  log-turtle " Ticks since fall: " ticks-since-fall
-  log-turtle " Helper factor: " factor
-  log-turtle " Bonus: " bonus
-  log-turtle " Current Fall Length: " fall-length
+  log-turtle (word " Ticks since fall: " ticks-since-fall) nobody
+  log-turtle (word " Helper factor: " factor) nobody
+  log-turtle (word " Bonus: " bonus) nobody
+  log-turtle (word " Current Fall Length: " fall-length) nobody
 
   set fall-length fall-length * (factor - bonus)
 
-  log-turtle " New Fall Length: " fall-length
-  log-turtle " Helper: " helping-bystander
+  log-turtle (word " New Fall Length: " fall-length) nobody
+  log-turtle (word " Helper: " helping-bystander) nobody
 
   if bonus > 0 [
     log-turtle "Applied bystander help" helping-bystander
@@ -1947,7 +1945,7 @@ to check-get-up
 
     if ticks-since-fall >= fall-length [
       ; TODO: Remove later
-      log-turtle "Getting up. Fall length" fall-length
+      log-turtle (word "Getting up. Fall length " fall-length) nobody
 
       set ticks-since-fall 0
       set fall-length DEFAULT_FALL_LENGTH
