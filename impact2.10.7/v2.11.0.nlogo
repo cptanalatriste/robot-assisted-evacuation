@@ -268,6 +268,7 @@ agents-own [
 to setup
   clear-all
   ;random-seed
+  show (word "number_passengers " number_passengers " _number_normal_staff_members " _number_normal_staff_members " _number_staff_members " _number_staff_members)
 
   set list_exits []
   set request-for-help-results (list (list "helper_gender" "helper_culture" "helper_age" "fallen_gender" "fallen_culture" "fallen_age" "offer-help"))
@@ -1230,6 +1231,7 @@ to-report seed-simulation [current-seed]
   ]
 
   random-seed current-seed
+  show (word "Current seed " current-seed)
   report current-seed
 end
 
